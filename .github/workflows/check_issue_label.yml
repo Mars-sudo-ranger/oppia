@@ -17,21 +17,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: npm install --legacy-peer-deps
-
       - name: Validate issue label
         uses: actions/github-script@v7
         with:
           script: |
-            const fs = require('fs');
-            const path = require('path');
-            // Require the he library for HTML escaping.
-            const he = require('he');
-
             const labelName = context.payload.label?.name || '';
             const username = context.actor || '';
-            // Explicitly convert the issue number to a number.
             const issueNumber = parseInt(context.issue.number, 10);
             const owner = context.repo.owner;
             const repo = context.repo.repo;
@@ -39,24 +30,18 @@ jobs:
             console.log("Username:", username);
             console.log("Issue Number:", issueNumber);
 
-            // Validate the label name.
-            const isValidLabelName = /^[\w\s-:]+$/.test(labelName);
-            if (!isValidLabelName) {
+            if (!/^[\w\s-:]+$/.test(labelName)) {
               throw new Error(`Invalid label name: ${labelName}`);
             }
 
-            // Validate the issue number.
             if (!Number.isInteger(issueNumber) || issueNumber <= 0) {
               throw new Error(`Invalid issue number: ${context.issue.number}`);
             }
 
-            // Validate the username.
-            const isValidUsername = /^[a-zA-Z0-9-]+$/.test(username);
-            if (!isValidUsername) {
+            if (!/^[a-zA-Z0-9-]+$/.test(username)) {
               throw new Error(`Invalid username: ${username}`);
             }
 
-            // Helper function to remove a label and create a comment.
             async function removeLabelAndComment(label, comment) {
               console.log(`Removing label: ${label}`);
               await github.rest.issues.removeLabel({
@@ -70,8 +55,17 @@ jobs:
               });
 
               console.log(`Creating comment: ${comment}`);
-              // Use the he library for HTML escaping.
-              const sanitizedComment = he.escape(comment);
+              const escapeHTML = (str) => {
+                const escapeMap = {
+                  '&': '&amp;',
+                  '<': '&lt;',
+                  '>': '&gt;',
+                  '"': '&quot;',
+                  "'": '&#39;'
+                };
+                return str.replace(/[&<>"']/g, m => escapeMap[m]);
+              };
+              const sanitizedComment = escapeHTML(comment);
               await github.rest.issues.createComment({
                 owner,
                 repo,
@@ -83,17 +77,12 @@ jobs:
               });
             }
 
-            // For "good first issue", dynamically fetch allowed team members from GitHub.
             if (labelName === "good first issue") {
-              // Team slug and organization name.
               const teamSlug = "oppia-good-first-issue-labelers";
               const orgName = "oppia";
               console.log(`Fetching team members for team ${teamSlug} in organization ${orgName}`);
               let allowedUsers = [];
               try {
-                // GitHub API endpoint: List team members in an organization.
-                // Documentation: https://docs.github.com/en/rest/teams/members?apiVersion=2022-11-28#list-team-members
-                // See also discussions on dynamic team member retrieval on StackOverflow.
                 const teamMembersResponse = await github.rest.teams.listMembersInOrg({
                   org: orgName,
                   team_slug: teamSlug
@@ -116,7 +105,6 @@ jobs:
               }
             }
 
-            // Labels that are only applicable to pull requests.
             const prLabels = new Set(["dependencies", "stale"]);
             if (prLabels.has(labelName) || labelName.startsWith("PR:")) {
               await removeLabelAndComment(
