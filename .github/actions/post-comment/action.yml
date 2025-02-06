@@ -24,7 +24,6 @@ runs:
         ISSUE_NUMBER: ${{ inputs.issue_number }}
         MESSAGE: ${{ inputs.message }}
       with:
-        github-token: ${{ github.token }}
         script: |
           await github.rest.issues.createComment({
             repo: process.env.REPO,
