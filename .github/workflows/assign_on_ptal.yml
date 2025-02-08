@@ -160,15 +160,3 @@ jobs:
             }
           })();
           "
-  report-failure:
-    if: github.event_name == 'push' && github.repository == 'oppia/oppia'
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Checkout repository so that local actions can be used
-        uses: actions/checkout@v4
-      - name: Report failure if failed on oppia/oppia develop branch
-        if: ${{ failure() && github.ref == 'refs/heads/develop' }}
-        uses: ./.github/actions/send-webhook-notification
-        with:
-          message: "A reviewer assign failed on the upstream develop branch."
-          webhook-url: ${{ secrets.BUILD_FAILURE_ROOM_WEBHOOK_URL }}
