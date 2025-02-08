@@ -174,7 +174,7 @@ jobs:
             // --------------------------------------------
             // Step 5: Post a confirmation comment
             // --------------------------------------------
-            const confirmationMessage = `Assigning ${reviewers.map(u => '@' + u).join(', ')} for the first pass review of this PR. Thanks!`;
+            const confirmationMessage = `Reviewers assigned: ${reviewers.map(u => '@' + u).join(', ')}.`;
             try {
               await githubApiRequest('POST', `/repos/${owner}/${repo}/issues/${prNumber}/comments`, { body: confirmationMessage });
               console.log('Posted confirmation comment successfully.');
