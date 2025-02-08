@@ -1,4 +1,4 @@
-name: Assign Reviewers on PTAL Comment and Report Failures
+name: Assign Reviewers on PTAL Comment
 
 on:
   issue_comment:
@@ -8,8 +8,13 @@ permissions: {}
 
 jobs:
   assign-reviewers:
-    if: github.event_name == 'issue_comment' && github.event.issue.pull_request != null
+    if: github.event.issue.pull_request != null
     runs-on: ubuntu-22.04
+    permissions: 
+      pull-requests: write
+      issues: write
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Run reviewer assignment script
         run: |
@@ -165,5 +170,5 @@ jobs:
         if: ${{ failure() && github.ref == 'refs/heads/develop' }}
         uses: ./.github/actions/send-webhook-notification
         with:
-          message: "A typescript test failed on the upstream develop branch."
+          message: "A reviewer assign failed on the upstream develop branch."
           webhook-url: ${{ secrets.BUILD_FAILURE_ROOM_WEBHOOK_URL }}
