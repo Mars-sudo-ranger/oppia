@@ -10,12 +10,12 @@ concurrency:
 
 jobs:
   full_stack_tests_completed:
-    name: Full Stack Test Completed
+    name: Full Stack Tests Completed
     runs-on: ubuntu-22.04
     outputs:
-      conclusion: ${{ steps.wait-for-full-stack-test.outputs.conclusion }}
+      conclusion: ${{ steps.wait-for-full-stack-test.outputs.run-conclusion }}
     steps:
-      - name: Wait for Full Stack Test to complete
+      - name: Wait for Full Stack Tests to Complete
         id: wait-for-full-stack-test
         uses: ArcticLampyrid/action-wait-for-workflow@v1.2.0
         with:
@@ -27,7 +27,7 @@ jobs:
             action_required
 
       - name: Conclusion Analysis
-        if: ${{ steps.wait-for-full-stack-test.outputs.conclusion == 'action_required' }}
+        if: ${{ steps.wait-for-full-stack-test.outputs.run-conclusion == 'action_required' }}
         run: |
           echo "::error::First-time contributor workflows require manual approval. After approval, please re-run the comment workflows to post the report."
           exit 1
@@ -35,20 +35,39 @@ jobs:
   full_stack_test_report:
     name: Full Stack Test Report
     needs: full_stack_tests_completed
+    if: ${{ needs.full_stack_tests_completed.outputs.conclusion == 'failure' && !cancelled() }}
     permissions:
       pull-requests: write
-    # Only run if the workflow finished and its conclusion is 'failure'
-    if: ${{ needs.full_stack_tests_completed.outputs.conclusion == 'failure' }}
     runs-on: ubuntu-22.04
     steps:
-      - name: Leave a comment on the PR if the workflow failed
-        uses: ./.github/actions/post-comment
+      - name: Find CI Workflow Run for PR
+        id: find-workflow-run
+        uses: actions/github-script@v7
+        continue-on-error: true
         with:
-          owner: ${{ github.event.repository.owner.login }}
-          repo: ${{ github.event.repository.name }}
-          issue_number: ${{ github.event.number }}
-          message: >
-            🛠️ Hi @${{ github.event.pull_request.user.login }}, it looks like
-            the CI checks are failing on your PR. Please look at the logs and
-            follow [these instructions](https://github.com/oppia/oppia/wiki/If-CI-checks-fail-on-your-PR#introduction)
-            to fix them, or report the error as a flake. Thanks!
+          script: |
+            // Find the last run of the full_stack_tests.yml workflow for the current PR's head
+            const { owner, repo } = context.repo;
+            const runsResponse = await github.rest.actions.listWorkflowRuns({
+              owner,
+              repo,
+              workflow_id: 'full_stack_tests.yml',
+              event: 'pull_request',
+              head_sha: context.payload.pull_request.head.sha,
+            });
+            const runs = runsResponse.data.workflow_runs;
+            runs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+            const run = runs[0];
+            if (!run) {
+              core.setFailed('Could not find a workflow run for the PR');
+            } else {
+              core.setOutput('run-id', run.id);
+            }
+      - name: Leave a Comment on the PR
+        uses: peter-evans/create-or-update-comment@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            🛠️ Hi @${{ github.event.pull_request.user.login }}, it looks like the Full Stack Tests are failing on your PR.
+            Please check the logs for details and refer to our troubleshooting guide if you need assistance.
