@@ -1,0 +1,30 @@
+name: Check Team Membership
+
+on:
+  issues:
+    types:
+      - labeled  # This triggers when an issue is labeled
+
+jobs:
+  check-membership:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      - name: Run membership check script
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Checking if issue #$ISSUE_NUMBER has been labeled with '$ISSUE_LABEL'..."
+          python scripts/check_membership.py WorkVed-Spaces-Actions oppia-good-first-issue-labelers

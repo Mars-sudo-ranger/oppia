@@ -1,0 +1,127 @@
+# name: Check Issue Labels
+
+# on:
+#   issues:
+#     types:
+#       - labeled
+
+# permissions: {}
+
+# jobs:
+#   check-label:
+#     runs-on: ubuntu-22.04
+#     permissions:
+#       issues: write
+#       contents: read
+#     steps:
+#       - name: Checkout repository
+#         uses: actions/checkout@v4
+
+#       - name: Validate issue label
+#         uses: actions/github-script@v7
+#         with:
+#           script: |
+#             const labelName = context.payload.label?.name || '';
+#             const username = context.actor || '';
+#             const issueNumber = parseInt(context.issue.number, 10);
+#             const owner = context.repo.owner;
+#             const repo = context.repo.repo;
+#             console.log("Label Name:", labelName);
+#             console.log("Username:", username);
+#             console.log("Issue Number:", issueNumber);
+
+#             if (!/^[\w\s-:]+$/.test(labelName)) {
+#               throw new Error(`Invalid label name: ${labelName}`);
+#             }
+
+#             if (!Number.isInteger(issueNumber) || issueNumber <= 0) {
+#               throw new Error(`Invalid issue number: ${context.issue.number}`);
+#             }
+
+#             if (!/^[a-zA-Z0-9-]+$/.test(username)) {
+#               throw new Error(`Invalid username: ${username}`);
+#             }
+
+#             // Helper function to remove a label and create a comment.
+#             async function removeLabelAndComment(label, comment) {
+#               console.log(`Removing label: ${label}`);
+#               await github.rest.issues.removeLabel({
+#                 owner,
+#                 repo,
+#                 issue_number: issueNumber,
+#                 name: label
+#               }).catch(err => {
+#                 console.error(`Error removing label: ${err.message}`);
+#                 throw new Error(`Error removing label: ${err.message}`);
+#               });
+
+#               console.log(`Creating comment: ${comment}`);
+#               const escapeHTML = (str) => {
+#                 const escapeMap = {
+#                   '&': '&amp;',
+#                   '<': '&lt;',
+#                   '>': '&gt;',
+#                   '"': '&quot;',
+#                   "'": '&#39;'
+#                 };
+#                 return str.replace(/[&<>"']/g, m => escapeMap[m]);
+#               };
+#               const sanitizedComment = escapeHTML(comment);
+#               await github.rest.issues.createComment({
+#                 owner,
+#                 repo,
+#                 issue_number: issueNumber,
+#                 body: sanitizedComment
+#               }).catch(err => {
+#                 console.error(`Error creating comment: ${err.message}`);
+#                 throw new Error(`Error creating comment: ${err.message}`);
+#               });
+#             }
+
+#             // Check for "good first issue" label
+#             if (labelName === "good first issue") {
+#               const query = `
+#                 query($org: String!, $teamSlug: String!) {
+#                   organization(login: $org) {
+#                     team(slug: $teamSlug) {
+#                       members(first: 100) {
+#                         nodes {
+#                           login
+#                         }
+#                       }
+#                     }
+#                   }
+#                 }
+#               `;
+
+#               try {
+#                 const result = await github.graphql(query, { 
+#                   org: "WorkVed-Spaces-Actions", 
+#                   teamSlug: "oppia-good-first-issue-labelers"
+#                 });
+                
+#                 const teamMembers = result.organization.team.members.nodes.map(member => member.login);
+#                 const isMember = teamMembers.includes(username);
+                
+#                 if (!isMember) {
+#                   await removeLabelAndComment(
+#                     labelName,
+#                     `Hi @${username}, only users from the [oppia-good-first-issue-labelers](https://github.com/orgs/WorkVed-Spaces-Actions/teams/oppia-good-first-issue-labelers) team can add the 'good first issue' label. Please reach out to them if needed. Thanks!`
+#                   );
+#                   throw new Error(`User @${username} is not permitted to add the 'good first issue' label.`);
+#                 }
+#               } catch (error) {
+#                 console.error("Membership check failed:", error);
+#                 throw error;
+#               }
+#             }
+
+#             // Labels that should only be used in pull requests.
+#             const prLabels = new Set(["dependencies", "stale"]);
+#             if (prLabels.has(labelName) || labelName.startsWith("PR:")) {
+#               await removeLabelAndComment(
+#                 labelName,
+#                 `Hi @${username}, the '${labelName}' label should only be used in pull requests. I'm removing the label. You can learn more about labels [here](https://github.com/oppia/oppia/wiki/Contributing-code-to-Oppia#labeling-issues-and-pull-requests). Thanks!`
+#               );
+#               throw new Error(`The label '${labelName}' is reserved for pull requests.`);
+#             }
