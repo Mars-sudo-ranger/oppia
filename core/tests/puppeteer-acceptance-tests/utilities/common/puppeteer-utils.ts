@@ -151,7 +151,8 @@ export class BaseUser {
             followNewTab: true,
             fps: 25,
             ffmpeg_Path: null,
-            // Below dimensions are of recorded video.
+            // These dimensions should match the aspect ratio of the xvfb virtual display
+            // defined in the GitHub Actions workflow (1920x1080)
             videoFrame: {
               width: 1920,
               height: 1080,
